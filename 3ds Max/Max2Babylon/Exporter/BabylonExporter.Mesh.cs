@@ -405,7 +405,8 @@ namespace Max2Babylon
                 var parityObject = meshNode.GetObjectTM(0).ExtractMatrix3().Parity;
 
                 // for cesium, threejs and babylonjs (all the same)
-                if (parityObject)
+                //if (parityObject)
+                if (false)
                 {
                     // flipped case: reverse normals
                     babylonMesh.normals = vertices.SelectMany(v => new[] { -v.Normal.X, -v.Normal.Y, -v.Normal.Z }).ToArray();
@@ -734,7 +735,7 @@ namespace Max2Babylon
             {
                 BaseIndex = vertexIndex,
                 Position = mesh.GetVertex(vertexIndex, false), // world space
-                Normal = mesh.GetNormal((int)face.Norm[facePart], false) // world space
+                Normal = mesh.GetNormal((int)face.Norm[facePart], true) // object space
             };
 
             if (exportParameters.exportTangents)
@@ -747,13 +748,285 @@ namespace Max2Babylon
                 vertex.Tangent = new float[] { tangent.X, tangent.Y, tangent.Z, w };
             }
 
-            // Convert position and normal to local space
-            vertex.Position = invertedWorldMatrix.PointTransform(vertex.Position);
+            System.Diagnostics.Debug.WriteLine("vertex position: " + string.Join(", ", vertex.Position.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("vertex normal: " + string.Join(", ", vertex.Normal.ToArray().Select(v => Math.Round(v, 3))));
 
-            vertex.Normal = invertedWorldMatrix.VectorTransform(vertex.Normal);
+
+
+
+
+            IPoint3 objOffsetPos = meshNode.MaxNode.ObjOffsetPos;
+            IQuat objOffsetQuat = meshNode.MaxNode.ObjOffsetRot;
+            var qFlippedYZ = objOffsetQuat;
+            var tmpSwap = objOffsetQuat.Y;
+            qFlippedYZ.Y = objOffsetQuat.Z;
+            qFlippedYZ.Z = tmpSwap;
+            var objOffsetRotMat = Tools.Identity;
+            qFlippedYZ.MakeMatrix(objOffsetRotMat, true);
+            IQuat objOffsetScaleQ = meshNode.MaxNode.ObjOffsetScale.Q;
+            IPoint3 objOffsetScaleS = meshNode.MaxNode.ObjOffsetScale.S;
+            IMatrix3 objOffsetScaleSMat = Tools.Identity;
+            objOffsetScaleSMat.SetScale(objOffsetScaleS);
+
+            /*
+            System.Diagnostics.Debug.WriteLine("objOffsetPos    : " + string.Join(", ", objOffsetPos.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objOffsetQuat    : " + string.Join(", ", objOffsetQuat.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objOffsetRotMat    : " + string.Join(", ", objOffsetRotMat.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objOffsetScaleQ : " + string.Join(", ", objOffsetScaleQ.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objOffsetScaleS : " + string.Join(", ", objOffsetScaleS.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objOffsetScaleSMat : " + string.Join(", ", objOffsetScaleSMat.ToArray().Select(v => Math.Round(v, 3))));
+            */
+
+            System.Diagnostics.Debug.WriteLine("before: objOffsetScaleS : " + string.Join(", ", objOffsetScaleS.ToArray().Select(v => Math.Round(v, 3))));
+            // note: LH coordinate system => flip y and z
+            var tmp = objOffsetScaleS.Y;
+            objOffsetScaleS.Y = objOffsetScaleS.Z;
+            objOffsetScaleS.Z = tmp;
+            System.Diagnostics.Debug.WriteLine("after : objOffsetScaleS : " + string.Join(", ", objOffsetScaleS.ToArray().Select(v => Math.Round(v, 3))));
+
+
+            IMatrix3 offsetTM2 = Tools.Identity;
+            offsetTM2.SetTranslate(objOffsetPos); // not needed
+            System.Diagnostics.Debug.WriteLine("offsetTM2    : " + string.Join(", ", offsetTM2.ToArray().Select(v => Math.Round(v, 3))));
+            offsetTM2.MultiplyBy(objOffsetRotMat);
+            System.Diagnostics.Debug.WriteLine("offsetTM2    : " + string.Join(", ", offsetTM2.ToArray().Select(v => Math.Round(v, 3))));
+            offsetTM2.PreScale(objOffsetScaleS, true); //pre or not pre?
+            System.Diagnostics.Debug.WriteLine("offsetTM2    : " + string.Join(", ", offsetTM2.ToArray().Select(v => Math.Round(v, 3))));
+
+
+            IQuat objOffsetQuat3 = meshNode.MaxNode.ObjOffsetRot;
+            var qFlippedYZ3 = objOffsetQuat3;
+            var tmpSwap3 = qFlippedYZ3.Y;
+            qFlippedYZ3.Y = qFlippedYZ3.Z;
+            qFlippedYZ3.Z = tmpSwap3;
+            var objOffsetRotMat3 = Tools.Identity;
+            qFlippedYZ3.MakeMatrix(objOffsetRotMat3, false); // difference: here set to false
+
+            System.Diagnostics.Debug.WriteLine("qFlippedYZ : " + string.Join(", ", qFlippedYZ.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("qFlippedYZ3: " + string.Join(", ", qFlippedYZ3.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objOffsetRotMat : " + string.Join(", ", objOffsetRotMat.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objOffsetRotMat3: " + string.Join(", ", objOffsetRotMat3.ToArray().Select(v => Math.Round(v, 3))));
+
+
+
+            IMatrix3 offsetTM3 = Tools.Identity;
+            offsetTM3.SetTranslate(objOffsetPos); // not needed
+            System.Diagnostics.Debug.WriteLine("offsetTM3    : " + string.Join(", ", offsetTM3.ToArray().Select(v => Math.Round(v, 3))));
+            offsetTM3.MultiplyBy(objOffsetRotMat3);
+            System.Diagnostics.Debug.WriteLine("offsetTM3    : " + string.Join(", ", offsetTM3.ToArray().Select(v => Math.Round(v, 3))));
+            offsetTM3.PreScale(objOffsetScaleS, true); //pre or not pre?
+            System.Diagnostics.Debug.WriteLine("offsetTM3    : " + string.Join(", ", offsetTM3.ToArray().Select(v => Math.Round(v, 3))));
+
+
+
+            IMatrix3 offsetTM4 = Tools.Identity;
+            offsetTM4.SetTranslate(objOffsetPos); // not needed
+            System.Diagnostics.Debug.WriteLine("offsetTM4    : " + string.Join(", ", offsetTM4.ToArray().Select(v => Math.Round(v, 3))));
+            offsetTM4.MultiplyBy(objOffsetRotMat);
+            System.Diagnostics.Debug.WriteLine("offsetTM4    : " + string.Join(", ", offsetTM4.ToArray().Select(v => Math.Round(v, 3))));
+            offsetTM4.PreScale(objOffsetScaleS, false); //difference here: pre or not pre?
+            System.Diagnostics.Debug.WriteLine("offsetTM4    : " + string.Join(", ", offsetTM4.ToArray().Select(v => Math.Round(v, 3))));
+
+
+            IPoint3 myNor2 = offsetTM2.VectorTransform(vertex.Normal);
+            IPoint3 myNor3 = offsetTM3.VectorTransform(vertex.Normal);
+            IPoint3 myNor4 = offsetTM4.VectorTransform(vertex.Normal);
+
+
+            // position (same as before)
+            vertex.Position = invertedWorldMatrix.PointTransform(vertex.Position);
+            // normal (new via obj)
+            vertex.Normal = myNor2.Normalize;
+            var checkMe3 = myNor3.Normalize;
+            var checkMe4 = myNor4.Normalize;
+
+            System.Diagnostics.Debug.WriteLine("vertex.Position: " + string.Join(", ", vertex.Position.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("vertex.Normal: " + string.Join(", ", vertex.Normal.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("checkMe3: " + string.Join(", ", checkMe3.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("checkMe4: " + string.Join(", ", checkMe4.ToArray().Select(v => Math.Round(v, 3))));
+
+
+            
+
+
+
+
+
+
+
+
+            /*
+            
+            IGMatrix localTM = meshNode.GetLocalTM(0);
+            var localTM_G4 = localTM.ToArray();
+            System.Diagnostics.Debug.WriteLine("localTM_G4: " + string.Join(", ", localTM_G4));
+
+            IGMatrix objTM = meshNode.GetObjectTM(0);
+            var objTM_G4 = objTM.ToArray();
+            System.Diagnostics.Debug.WriteLine("objTM_G4: " + string.Join(", ", objTM_G4));
+            var invObjTM_M3 = objTM.ExtractMatrix3();
+            invObjTM_M3.Invert();
+            System.Diagnostics.Debug.WriteLine("objTM_M3: " + string.Join(", ", objTM.ExtractMatrix3().ToArray()));
+            System.Diagnostics.Debug.WriteLine("invObjTM_M3: " + string.Join(", ", invObjTM_M3.ToArray()));
+
+            
+
+            IGMatrix worldTM = meshNode.GetWorldTM(0);
+            var worldTM_G4 = worldTM.ToArray();
+            var worldTM_M3 = worldTM.ExtractMatrix3().ToArray();
+            System.Diagnostics.Debug.WriteLine("worldTM_G4: " + string.Join(", ", worldTM_G4));
+            System.Diagnostics.Debug.WriteLine("worldTM_M3: " + string.Join(", ", worldTM_M3));
+
+            IGMatrix invWorldTM = worldTM.Inverse;
+            var invWorldTM_G4 = invWorldTM.ToArray();
+            var invWorldTM_M3 = invWorldTM.ExtractMatrix3().ToArray();
+            var sameAsAbove = invertedWorldMatrix.ToArray(); // checked is correct...good!
+            System.Diagnostics.Debug.WriteLine("invWorldTM_G4: " + string.Join(", ", invWorldTM_G4));
+            System.Diagnostics.Debug.WriteLine("invWorldTM_M3: " + string.Join(", ", invWorldTM_M3));
+
+            // access via maxnode give the relevant info, but maxnode is same order as G4...strange (expected M3)
+            IMatrix3 nodeTM = meshNode.MaxNode.GetNodeTM(0, Tools.Forever);
+            var nodeTM_M3 = nodeTM.ToArray();
+            System.Diagnostics.Debug.WriteLine("nodeTM_M3: " + string.Join(", ", worldTM_G4));
+            */
+
+            
+            /*
+            // pos
+            var v_pos_world = vertex.Position.ToArray();
+            System.Diagnostics.Debug.WriteLine("v_pos_world: " + string.Join(", ", v_pos_world));
+
+            var v_pos_node = invertedWorldMatrix.PointTransform(vertex.Position).ToArray();
+            System.Diagnostics.Debug.WriteLine("v_pos_node: " + string.Join(", ", v_pos_node));
+
+            var v_pos_obj = invObjTM_M3.VectorTransform(vertex.Position).ToArray();
+            System.Diagnostics.Debug.WriteLine("v_pos_obj: " + string.Join(", ", v_pos_obj));
+
+
+            //normal
+            var v_normal_world = vertex.Normal.ToArray();
+            System.Diagnostics.Debug.WriteLine("v_normal_world: " + string.Join(", ", v_normal_world));
+
+            var v_normal_node = invertedWorldMatrix.VectorTransform(vertex.Normal).ToArray();
+            System.Diagnostics.Debug.WriteLine("v_normal_node: " + string.Join(", ", v_normal_node));
+
+            var v_normal_obj = invObjTM_M3.VectorTransform(vertex.Normal).ToArray();
+            System.Diagnostics.Debug.WriteLine("v_normal_obj: " + string.Join(", ", v_normal_obj));
+
+            */
+
+
+            /*
+            // same as objTM
+            IMatrix3 objTMBefore = meshNode.MaxNode.GetObjTMBeforeWSM(0, Tools.Forever);
+            IMatrix3 objTMAfter = meshNode.MaxNode.GetObjTMAfterWSM(0, Tools.Forever);
+            System.Diagnostics.Debug.WriteLine("objTMBefore: " + string.Join(", ", objTMBefore.ToArray()));
+            System.Diagnostics.Debug.WriteLine("objTMAfter: " + string.Join(", ", objTMAfter.ToArray()));
+            */
+
+
+            // testing different tm
+            IGMatrix worldTM_G4 = meshNode.GetWorldTM(0);
+            IMatrix3 worldTM_M3 = worldTM_G4.ExtractMatrix3();
+            IGMatrix objTM_G4 = meshNode.GetObjectTM(0);
+            IMatrix3 objTM_M3 = objTM_G4.ExtractMatrix3();
+            IMatrix3 nodeTM_M3_viaMaxNode = meshNode.MaxNode.GetNodeTM(0, Tools.Forever);
+            IMatrix3 worldTM_M3_viaMaxNode_parentTrue = meshNode.MaxNode.GetWorldMatrix(0, true);
+            IMatrix3 worldTM_M3_viaMaxNode_parentFalse = meshNode.MaxNode.GetWorldMatrix(0, false);
+            IMatrix3 objTM_M3_viaMaxNode = meshNode.MaxNode.GetObjectTM(0, Tools.Forever);
+
+            System.Diagnostics.Debug.WriteLine("worldTM_M3: " + string.Join(", ", worldTM_M3.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objTM_M3: " + string.Join(", ", objTM_M3.ToArray().Select(v => Math.Round(v, 3))));
+
+
+            IMatrix3 objTMAfterWSM = meshNode.MaxNode.GetObjTMAfterWSM(0, Tools.Forever);
+            IPoint3 nWorld = mesh.GetNormal((int)face.Norm[facePart], false); // world space
+
+            System.Diagnostics.Debug.WriteLine("objTMAfterWSM: " + string.Join(", ", objTMAfterWSM.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("nWorld: " + string.Join(", ", nWorld.ToArray().Select(v => Math.Round(v, 3))));
+
+
+
+
+            /*
+            System.Diagnostics.Debug.WriteLine("worldTM_G4: " + string.Join(", ", worldTM_G4.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("worldTM_M3: " + string.Join(", ", worldTM_M3.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objTM_G4: " + string.Join(", ", objTM_G4.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objTM_M3: " + string.Join(", ", objTM_M3.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("nodeTM_M3_viaMaxNode: " + string.Join(", ", nodeTM_M3_viaMaxNode.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("worldTM_M3_viaMaxNode_parentTrue: " + string.Join(", ", worldTM_M3_viaMaxNode_parentTrue.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("worldTM_M3_viaMaxNode_parentFalse: " + string.Join(", ", worldTM_M3_viaMaxNode_parentFalse.ToArray().Select(v => Math.Round(v, 3))));
+            System.Diagnostics.Debug.WriteLine("objTM_M3_viaMaxNode: " + string.Join(", ", objTM_M3_viaMaxNode.ToArray().Select(v => Math.Round(v, 3))));
+            */
+
+            // parity tests
+            bool p1 = Convert.ToBoolean(worldTM_G4.Parity);
+            bool p2 = worldTM_M3.Parity;
+            bool p3 = Convert.ToBoolean(objTM_G4.Parity);
+            bool p3a = objTM_M3.Parity;
+            bool p4 = nodeTM_M3_viaMaxNode.Parity;
+            bool p5 = worldTM_M3_viaMaxNode_parentTrue.Parity;
+            bool p6 = worldTM_M3_viaMaxNode_parentFalse.Parity;
+            bool p7 = objTM_M3_viaMaxNode.Parity;
+            bool[] parities = new bool[] { p1, p2, p3, p3a, p4, p5, p6, p7 };
+
+            System.Diagnostics.Debug.WriteLine("parities: " + string.Join(", ", parities));
+
+            /*
+            // nice try to understand, but no conclusion :/
+            IMatrix3 invObjTM_M3_viaMaxNode = objTM_M3_viaMaxNode;
+            invObjTM_M3_viaMaxNode.Invert();
+
+            var objTMPos = invObjTM_M3_viaMaxNode.PointTransform(vertex.Position);
+            System.Diagnostics.Debug.WriteLine("objTMPos     : " + string.Join(", ", objTMPos.ToArray().Select(v => Math.Round(v, 3))));
+
+            var objTMNormal = invObjTM_M3_viaMaxNode.VectorTransform(vertex.Normal);
+            System.Diagnostics.Debug.WriteLine("objTMNormal  : " + string.Join(", ", objTMNormal.ToArray().Select(v => Math.Round(v, 3))));
+
+
+            IMatrix3 invNodeTM_M3_viaMaxNode = nodeTM_M3_viaMaxNode;
+            invNodeTM_M3_viaMaxNode.Invert();
+
+            var nodeTMPos = invNodeTM_M3_viaMaxNode.PointTransform(vertex.Position);
+            System.Diagnostics.Debug.WriteLine("nodeTMPos     : " + string.Join(", ", nodeTMPos.ToArray().Select(v => Math.Round(v, 3))));
+
+            var nodeTMNormal = invNodeTM_M3_viaMaxNode.VectorTransform(vertex.Normal);
+            System.Diagnostics.Debug.WriteLine("nodeTMNormal  : " + string.Join(", ", nodeTMNormal.ToArray().Select(v => Math.Round(v, 3))));
+            */
+
+
+
+
+
+
+
+
+
+
+
+            /*
+            // Convert position and normal to local space
+            System.Diagnostics.Debug.WriteLine("invertedWorldMatrix: " + string.Join(", ", invertedWorldMatrix.ToArray().Select(v => Math.Round(v, 3))));
+
+            System.Diagnostics.Debug.WriteLine("v_pos_world    : " + string.Join(", ", vertex.Position.ToArray().Select(v => Math.Round(v, 3))));
+            vertex.Position = invertedWorldMatrix.PointTransform(vertex.Position);
+            System.Diagnostics.Debug.WriteLine("v_pos_node     : " + string.Join(", ", vertex.Position.ToArray().Select(v => Math.Round(v, 3))));
+
+            System.Diagnostics.Debug.WriteLine("v_normal_world : " + string.Join(", ", vertex.Normal.ToArray().Select(v => Math.Round(v, 3))));
+            // var test123 = invertedWorldMatrix.PointTransform(vertex.Normal); // checked, is the same as below
+            // System.Diagnostics.Debug.WriteLine("test123  : " + string.Join(", ", test123.ToArray().Select(v => Math.Round(v, 3))));
+            vertex.Normal = invertedWorldMatrix.VectorTransform(vertex.Normal); 
+            System.Diagnostics.Debug.WriteLine("v_normal_node  : " + string.Join(", ", vertex.Normal.ToArray().Select(v => Math.Round(v, 3))));
+            */
+
+
+
+            /*
             // 1. scale normals with node scales
             var nodeScaling = BabylonVector3.FromArray(babylonAbstractMesh.scaling);
             vertex.Normal = vertex.Normal.Multiply(Loader.Global.Point3.Create(Math.Abs(nodeScaling.X), Math.Abs(nodeScaling.Y), Math.Abs(nodeScaling.Z)));
+            System.Diagnostics.Debug.WriteLine("nodeScales applied: " + string.Join(", ", vertex.Normal.ToArray().Select(v => Math.Round(v, 3))));
+
 
             // 2. scale normals with objectOffsetScales (unrotate by objectOffsetRot, then scale, then rotate again)
             // note: LH coordinate system => flip y and z
@@ -762,19 +1035,32 @@ namespace Max2Babylon
             var scaleY = Math.Abs(objOffsetScale.Y);
             var scaleZ = Math.Abs(objOffsetScale.Z);
             var objOffsetScaleFlipYZInv = Loader.Global.Point3.Create(1/scaleX, 1/scaleZ, 1/scaleY);
+            System.Diagnostics.Debug.WriteLine("objOffsetScaleFlipYZInv: " + string.Join(", ", objOffsetScaleFlipYZInv.ToArray()));
+
 
             var objOffsetQuat = meshNode.MaxNode.ObjOffsetRot;
             var qFlippedYZ = objOffsetQuat;
             var tmpSwap = objOffsetQuat.Y;
             qFlippedYZ.Y = objOffsetQuat.Z;
             qFlippedYZ.Z = tmpSwap;
+            System.Diagnostics.Debug.WriteLine("qFlippedYZ: " + string.Join(", ", qFlippedYZ.ToArray()));
+
 
             var nUnrotated = RotateVectorByQuaternion(vertex.Normal, qFlippedYZ);
+            System.Diagnostics.Debug.WriteLine("nUnrotated: " + string.Join(", ", nUnrotated.ToArray()));
+
             var nUnrotatedScaled = nUnrotated.Multiply(objOffsetScaleFlipYZInv);
+            System.Diagnostics.Debug.WriteLine("nUnrotatedScaled: " + string.Join(", ", nUnrotatedScaled.ToArray()));
+
             nUnrotatedScaled = nUnrotatedScaled.Normalize;
+            System.Diagnostics.Debug.WriteLine("nUnrotatedScaledNormed: " + string.Join(", ", nUnrotatedScaled.ToArray()));
+
             var nRerotatedScaled = RotateVectorByQuaternion(nUnrotatedScaled, qFlippedYZ.Conjugate);
+            System.Diagnostics.Debug.WriteLine("nRerotatedScaled: " + string.Join(", ", nRerotatedScaled.ToArray()));
 
             vertex.Normal = nRerotatedScaled;
+            */
+
 
             if (hasUV)
             {
